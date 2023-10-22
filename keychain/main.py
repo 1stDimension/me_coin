@@ -12,6 +12,15 @@ mnemo = mmn.Mnemonic("english")
 # seed = mnemo.to_seed(words, passphrase="")
 
 
+## Have the keys be stored here or be discovered from SEEd
+## other modules can only reference keys from here
+# They can say please sign this using this private key
+# Or you can 
+# Please verify this
+
+## what is my identity? Sha256 in hex of one of my public keys
+
+
 # pprint.pprint(words)
 class Seed(bytes):
     default_name = "seed_phrase.txt"
