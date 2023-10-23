@@ -44,6 +44,14 @@ class Seed(bytes):
             text = f.read()
         return bytes(mnemo.to_entropy(text))
 
+    @staticmethod
+    def from_file(name=None) -> Self:
+        if name is None:
+            name = Seed.default_name
+        with open(name, "r") as f:
+            text = f.read()
+        return bytes(mnemo.to_entropy(text))
+
 
 class Pair_id(bytes):
     pass

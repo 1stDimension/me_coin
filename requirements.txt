@@ -3,4 +3,5 @@ mnemonic
 pytest
 cryptography
 fastapi
+httpx
 rocketry
