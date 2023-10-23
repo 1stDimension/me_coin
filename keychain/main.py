@@ -48,9 +48,10 @@ class Pair_id(bytes):
 
 
 def encrypt(key_id):
+    pass
     
-    pk : ec_crypto.EllipticCurvePrivateKey
-    pk
+    #pk : ec_crypto.EllipticCurvePrivateKey
+    #pk
 
 
 def decrypt(key_id):
