@@ -29,6 +29,7 @@ PUBLIC_KEY = keys[1]
 app = FastAPI()
 app.neighbors: dict[str, Neighbor] = {}
 
+
 @app.get("/")
 def read_root(request: Request):
     client = request.client.host
@@ -44,9 +45,11 @@ def read_neighbor() -> dict[str, Neighbor]:
 def keep_alive():
     return {"H": "2O"}
 
+
 class NeighborLimitReached(Exception):
     def __init__(self, neighbor: list[Neighbor]):
         self.neighbor = neighbor
+
 
 @app.exception_handler(NeighborLimitReached)
 async def unicorn_exception_handler(request: Request, exc: NeighborLimitReached):
@@ -64,7 +67,7 @@ def attach_neighbour(item: Item, request: Request):
     # otherwise send 429 and neighbors
     contents = item.contents
     pub_key = serial.load_pem_public_key(item.contents.public_key.encode())
-    if isinstance(pub_key,ec.EllipticCurvePublicKey):
+    if isinstance(pub_key, ec.EllipticCurvePublicKey):
         pass
         # print("It' public key")
     signature = bytes.fromhex(item.sign)
@@ -74,31 +77,36 @@ def attach_neighbour(item: Item, request: Request):
     try:
         pub_key.verify(signature, serial_contents, ec.ECDSA(hashes.SHA256()))
     except crypto_exceptions.InvalidSignature as e:
-        raise HTTPException(status_code=403,detail="Invalid Signature")
+        raise HTTPException(status_code=403, detail="Invalid Signature")
 
     if len(app.neighbors) >= NEIGHBOR_LIMIT:
-        raise NeighborLimitReached(neighbor= app.neighbors)
+        raise NeighborLimitReached(neighbor=app.neighbors)
     else:
         client = request.client.host
         ct = datetime.datetime.now()
         ts = int(ct.timestamp() * 1000.0)
         expire = ts + 20 * 1000
-        neighbor = Neighbor(ip=client, pub_key=contents.public_key, address=contents.their_address,expiration=expire)
+        neighbor = Neighbor(
+            ip=client,
+            pub_key=contents.public_key,
+            address=contents.their_address,
+            expiration=expire,
+        )
 
         pprint(neighbor)
         print(neighbor)
-        
+
         print(f"ts = {ts}")
         # print(neighbor)
         # print(item)
-        # app.neighbors: 
-        return {
-            "expire": expire
-        }
+        # app.neighbors:
+        return {"expire": expire}
+
 
 @app.post("/join")
 def join_network():
     return {"result": "success"}
+
 
 @app.get("/items/{item_id}")
 def read_item(item_id: int, q: Union[str, None] = None):
