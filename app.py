@@ -1,5 +1,7 @@
 from typing import Union
 
+from pprint import pprint
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -71,15 +73,21 @@ def attach_neighbour(item: Item, request: Request):
         raise NeighborLimitReached(neighbor= app.neighbors)
     else:
         client = request.client.host
-        neighbor = Neighbor(ip=client, pub_key=contents.public_key, address=contents.their_address)
         ct = datetime.datetime.now()
         ts = int(ct.timestamp() * 1000.0)
         next_check = ts + 20 * 1000
+        neighbor = Neighbor(ip=client, pub_key=contents.public_key, address=contents.their_address,next_check=next_check)
+
+        pprint(neighbor)
+        print(neighbor)
+        
         print(f"ts = {ts}")
         # print(neighbor)
         # print(item)
         # app.neighbors: 
-    raise HTTPException(status_code=501)
+        return {
+            "next_check": next_check
+        }
 
 
 @app.get("/items/{item_id}")

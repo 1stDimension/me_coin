@@ -5,6 +5,7 @@ class Neighbor(BaseModel):
     ip: str
     pub_key: str
     address: str
+    next_check: int
 
 class InnerItem(BaseModel):
     public_key: str  # PEM
