@@ -34,10 +34,12 @@ def test_main():
     # client.post
     
     contents = {"public_key": pem_pub_key_str, "their_address": my_address}
-    serialised_contents = json.dumps(contents,sort_keys=True).encode()
+    separators=(',', ':')
+    serialised_contents = json.dumps(contents,sort_keys=True,separators=separators).encode()
 
     print("Sign")
     sign = priv_key.sign(serialised_contents,ec.ECDSA(hashes.SHA256())).hex() # DER encoded
+    print(f"serial_content = {serialised_contents}")
     j = {"contents": contents, "sign": sign}
     pprint.pprint(j)
     response = client.post("/attach/", json=j)
