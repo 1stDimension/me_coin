@@ -66,6 +66,10 @@ def attach_neighbour(item: Item, request: Request):
         pub_key.verify(signature, serial_contents, ec.ECDSA(hashes.SHA256()))
     except crypto_exceptions.InvalidSignature as e:
         raise HTTPException(status_code=403,detail="Invalid Signature")
+
+    if len(app.neighbors) >= NEIGHBOR_LIMIT:
+        raise NeighborLimitReached(neighbor= app.neighbors)
+
     client = request.client.host
     neighbor = Neighbor(ip=client, pub_key=contents.public_key, address=contents.their_address)
     ct = datetime.datetime.now()
