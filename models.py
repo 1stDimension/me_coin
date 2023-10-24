@@ -24,3 +24,7 @@ class Join(BaseModel):
 class AttachSuccess():
     expire: int
     neighbors: list[Neighbor]
+
+@dataclass
+class AttachFailure():
+    neighbors: list[Neighbor]

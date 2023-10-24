@@ -8,6 +8,8 @@ from pydantic import BaseModel
 
 import requests
 
+import random
+
 import ipaddress
 import json
 import datetime
@@ -119,16 +121,24 @@ def join_network(join: Join):
     priv_key = PRIVATE_KEY
     guard_node = join.guard_node
 
-    attach_request_body = create_attach_request(pub_key,priv_key)
-    attach_request_response = requests.post(url=f"{guard_node}/attach/", json=attach_request_body)
+    attach_request_body = create_attach_request(pub_key, priv_key)
+    attach_request_response = requests.post(
+        url=f"{guard_node}/attach/", json=attach_request_body
+    )
 
     match attach_request_response.status_code:
         case 200:
             body: dict = attach_request_response.json()
-            exp = body.get("expire")
-            ats = AttachSuccess(exp)
+            ats = AttachSuccess(**body)
+            print(f"Successful connect {ats} -> find 2 more guard nodes guard")
+            handle_followup_attaches(ats.neighbors,pub_key,priv_key)
+                
         case 429:
+            body: dict = attach_request_response.json()
+            atf = AttachFailure(**body)
             print("Too much neighbors connected -> falling back to reported neighbors")
+            handle_followup_attaches(atf.neighbors,pub_key,priv_key)
+
 
     return {"result": "success", "guard_node": guard_node}
 

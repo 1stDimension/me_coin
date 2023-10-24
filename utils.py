@@ -5,7 +5,12 @@ import cryptography.exceptions as crypto_exceptions
 
 import hashlib
 import json
+import random
 from typing import Any
+
+from models import Neighbor, AttachFailure, AttachSuccess
+
+import requests
 
 from pydantic import BaseModel
 from fastapi import HTTPException
@@ -48,3 +53,40 @@ def create_attach_request(
     ).hex()  # DER encoded
     print(f"serial_content = {serialized_contents}")
     return {"contents": contents, "sign": sign}
+
+CONNECT_LEAVES = 2
+
+def handle_followup_attaches(
+    n: list[Neighbor],
+    pub_key: ec.EllipticCurvePublicKey,
+    priv_key: ec.EllipticCurvePrivateKey,
+):
+    match len(n):
+        case 0:
+            print("WARNING: No possible guard nodes in the network")
+        case 1 | 2 :
+            for i in n:
+                handle_single_attach(pub_key, priv_key, i)
+        case _:
+            for i in random.choices(n,k=CONNECT_LEAVES):
+                handle_single_attach(pub_key, priv_key, i)
+                
+
+def handle_single_attach(pub_key, priv_key, i):
+    new_attach_request_body = create_attach_request(pub_key, priv_key)
+    next_guard_node = i.ip
+    new_attach_request_response = requests.post(
+                    url=f"{next_guard_node}/attach/", json=new_attach_request_body
+                )
+    match new_attach_request_response.status_code:
+        case 200:
+            body: dict = new_attach_request_response.json()
+            ats = AttachSuccess(**body)
+            print(f"Successful connect {ats} to guard")
+        case 429:
+            body: dict = new_attach_request_response.json()
+            ats = AttachFailure(**body)
+            print(f"Failed to connect {ats} to guard")
+        case _:
+            pass
+    
