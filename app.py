@@ -60,19 +60,21 @@ async def unicorn_exception_handler(request: Request, exc: NeighborLimitReached)
         content=exc.neighbor,
     )
 
-def verify(public_key:str,sign: str,data: BaseModel):
+
+def verify(public_key: str, sign: str, data: BaseModel):
     pub_key = serial.load_pem_public_key(public_key.encode())
     if isinstance(pub_key, ec.EllipticCurvePublicKey):
         pass
         # print("It' public key")
     signature = bytes.fromhex(sign)
     # print(f"signature = {signature}")
-    serial_contents =  data.model_dump_json().encode()
+    serial_contents = data.model_dump_json().encode()
     # print(f"serial_contents = {serial_contents}")
     try:
         pub_key.verify(signature, serial_contents, ec.ECDSA(hashes.SHA256()))
     except crypto_exceptions.InvalidSignature as e:
         raise HTTPException(status_code=403, detail="Invalid Signature")
+
 
 @app.post("/attach")
 def attach_neighbour(item: Item, request: Request):
@@ -81,26 +83,7 @@ def attach_neighbour(item: Item, request: Request):
     # Add them to neighbors if I can
     # otherwise send 429 and neighbors
     contents = item.contents
-    pub_key = serial.load_pem_public_key(
-        item.contents.public_key.encode()
-    )
-    if isinstance(pub_key, ec.EllipticCurvePublicKey):
-        pass
-        # print("It' public key")
-    signature = bytes.fromhex(item.sign)
-    # print(f"signature = {signature}")
-    serial_contents = item.contents.model_dump_json().encode()
-    # print(f"serial_contents = {serial_contents}")
-    try:
-        pub_key.verify(signature, serial_contents, ec.ECDSA(hashes.SHA256()))
-    except crypto_exceptions.InvalidSignature as e:
-        raise HTTPException(status_code=403, detail="Invalid Signature")
-
-    verify(
-        item.contents.public_key,
-        item.sign,
-        item.contents
-    )
+    verify(item.contents.public_key, item.sign, item.contents)
 
     if len(app.neighbors) >= NEIGHBOR_LIMIT:
         raise NeighborLimitReached(neighbor=app.neighbors)
