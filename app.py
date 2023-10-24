@@ -117,40 +117,20 @@ def attach_neighbor(item: Item, request: Request) -> AttachSuccess:
 def join_network(join: Join):
     pub_key = PUBLIC_KEY
     priv_key = PRIVATE_KEY
-    ip = join.guard_node
+    guard_node = join.guard_node
 
-    pem_pub_key = pub_key.public_bytes(
-        serial.Encoding.PEM, serial.PublicFormat.SubjectPublicKeyInfo
-    )
-    pem_pub_key_str = pem_pub_key.decode()
-    my_address = hashlib.sha256(pem_pub_key).digest().hex()
-    print(pem_pub_key)
-    print(my_address)
-    # client.post
+    attach_request_body = create_attach_request(pub_key,priv_key)
+    attach_request_response = requests.post(url=f"{guard_node}/attach/", json=attach_request_body)
 
-    contents = {"public_key": pem_pub_key_str, "their_address": my_address}
-    separators = (",", ":")
-    serialised_contents = json.dumps(
-        contents, sort_keys=True, separators=separators
-    ).encode()
-
-    print("Sign")
-    sign = priv_key.sign(
-        serialised_contents, ec.ECDSA(hashes.SHA256())
-    ).hex()  # DER encoded
-    print(f"serial_content = {serialised_contents}")
-    j = {"contents": contents, "sign": sign}
-    pprint.pprint(j)
-    response = requests.post(url=f"{ip}/attach/", json=j)
-    match response.status_code:
+    match attach_request_response.status_code:
         case 200:
-            body: dict = response.json()
+            body: dict = attach_request_response.json()
             exp = body.get("expire")
             ats = AttachSuccess(exp)
         case 429:
             print("Too much neighbors connected -> falling back to reported neighbors")
 
-    return {"result": "success", "guard_node": ip}
+    return {"result": "success", "guard_node": guard_node}
 
 
 @app.get("/items/{item_id}")
