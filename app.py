@@ -69,18 +69,17 @@ def attach_neighbour(item: Item, request: Request):
 
     if len(app.neighbors) >= NEIGHBOR_LIMIT:
         raise NeighborLimitReached(neighbor= app.neighbors)
-
-    client = request.client.host
-    neighbor = Neighbor(ip=client, pub_key=contents.public_key, address=contents.their_address)
-    ct = datetime.datetime.now()
-    ts = int(ct.timestamp() * 1000.0)
-    next_check = ts + 20 * 1000
-    print(f"ts = {ts}")
-    # print(neighbor)
-    # print(item)
-    # app.neighbors: 
-
-    return {"Hello": "World"}
+    else:
+        client = request.client.host
+        neighbor = Neighbor(ip=client, pub_key=contents.public_key, address=contents.their_address)
+        ct = datetime.datetime.now()
+        ts = int(ct.timestamp() * 1000.0)
+        next_check = ts + 20 * 1000
+        print(f"ts = {ts}")
+        # print(neighbor)
+        # print(item)
+        # app.neighbors: 
+    raise HTTPException(status_code=501)
 
 
 @app.get("/items/{item_id}")
