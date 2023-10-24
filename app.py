@@ -43,6 +43,8 @@ def read_neighbor() -> dict[str, Neighbor]:
 
 @app.post("/keep-alive")
 def keep_alive():
+    # Special request
+    # if correct
     return {"H": "2O"}
 
 
@@ -58,6 +60,19 @@ async def unicorn_exception_handler(request: Request, exc: NeighborLimitReached)
         content=exc.neighbor,
     )
 
+def verify(public_key:str,sign: str,data: BaseModel):
+    pub_key = serial.load_pem_public_key(public_key.encode())
+    if isinstance(pub_key, ec.EllipticCurvePublicKey):
+        pass
+        # print("It' public key")
+    signature = bytes.fromhex(sign)
+    # print(f"signature = {signature}")
+    serial_contents =  data.model_dump_json().encode()
+    # print(f"serial_contents = {serial_contents}")
+    try:
+        pub_key.verify(signature, serial_contents, ec.ECDSA(hashes.SHA256()))
+    except crypto_exceptions.InvalidSignature as e:
+        raise HTTPException(status_code=403, detail="Invalid Signature")
 
 @app.post("/attach")
 def attach_neighbour(item: Item, request: Request):
@@ -66,7 +81,9 @@ def attach_neighbour(item: Item, request: Request):
     # Add them to neighbors if I can
     # otherwise send 429 and neighbors
     contents = item.contents
-    pub_key = serial.load_pem_public_key(item.contents.public_key.encode())
+    pub_key = serial.load_pem_public_key(
+        item.contents.public_key.encode()
+    )
     if isinstance(pub_key, ec.EllipticCurvePublicKey):
         pass
         # print("It' public key")
@@ -78,6 +95,12 @@ def attach_neighbour(item: Item, request: Request):
         pub_key.verify(signature, serial_contents, ec.ECDSA(hashes.SHA256()))
     except crypto_exceptions.InvalidSignature as e:
         raise HTTPException(status_code=403, detail="Invalid Signature")
+
+    verify(
+        item.contents.public_key,
+        item.sign,
+        item.contents
+    )
 
     if len(app.neighbors) >= NEIGHBOR_LIMIT:
         raise NeighborLimitReached(neighbor=app.neighbors)
@@ -99,7 +122,8 @@ def attach_neighbour(item: Item, request: Request):
         print(f"ts = {ts}")
         # print(neighbor)
         # print(item)
-        # app.neighbors:
+        app.neighbors[client] = neighbor
+
         return {"expire": expire}
 
 
