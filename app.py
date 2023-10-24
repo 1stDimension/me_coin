@@ -10,6 +10,7 @@ import ipaddress
 import json
 import datetime
 
+from keychain.main import Seed, Pair_id, generate_pair
 from models import Neighbor, Item, InnerItem
 
 import cryptography.hazmat.primitives.serialization as serial
@@ -18,6 +19,12 @@ import cryptography.hazmat.primitives.hashes as hashes
 import cryptography.exceptions as crypto_exceptions
 
 NEIGHBOR_LIMIT = 5
+SEED_FILE = "seed_phrase.txt"
+SEED = Seed.from_file(SEED_FILE)
+pair_id = Pair_id(b"0")
+keys = generate_pair(SEED, pair_id)
+PRIVATE_KEY = keys[0]
+PUBLIC_KEY = keys[1]
 
 app = FastAPI()
 app.neighbors: dict[str, Neighbor] = {}
@@ -75,8 +82,8 @@ def attach_neighbour(item: Item, request: Request):
         client = request.client.host
         ct = datetime.datetime.now()
         ts = int(ct.timestamp() * 1000.0)
-        next_check = ts + 20 * 1000
-        neighbor = Neighbor(ip=client, pub_key=contents.public_key, address=contents.their_address,next_check=next_check)
+        expire = ts + 20 * 1000
+        neighbor = Neighbor(ip=client, pub_key=contents.public_key, address=contents.their_address,expiration=expire)
 
         pprint(neighbor)
         print(neighbor)
@@ -86,9 +93,12 @@ def attach_neighbour(item: Item, request: Request):
         # print(item)
         # app.neighbors: 
         return {
-            "next_check": next_check
+            "expire": expire
         }
 
+@app.post("/join")
+def join_network():
+    return {"result": "success"}
 
 @app.get("/items/{item_id}")
 def read_item(item_id: int, q: Union[str, None] = None):
