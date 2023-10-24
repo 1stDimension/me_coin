@@ -82,8 +82,5 @@ def generate_pair(
     curve = ec_crypto.SECP256K1()
     priv_key = ec_crypto.derive_private_key(i, curve)
     pub_key = priv_key.public_key()
-    print(
-        pub_key.public_bytes(serial.Encoding.PEM,serial.PublicFormat.SubjectPublicKeyInfo)
-    )
     
     return priv_key, pub_key
