@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+from pydantic import BaseModel,AnyUrl, HttpUrl
+from dataclasses import dataclass
 
 
 class Neighbor(BaseModel):
@@ -16,3 +17,10 @@ class Item(BaseModel):
     contents: InnerItem
     sign: str
 
+class Join(BaseModel):
+    guard_node: HttpUrl
+
+@dataclass
+class AttachSuccess():
+    expire: int
+    neighbors: list[Neighbor]

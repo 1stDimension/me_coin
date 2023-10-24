@@ -12,6 +12,7 @@ import pprint
 import cryptography as crypto
 
 from keychain.main import Seed, generate_pair, Pair_id
+from utils import create_attach_request
 
 client = TestClient(app)
 
@@ -24,23 +25,34 @@ def test_main():
     print(keys)
     priv_key = keys[0]
     pub_key = keys[1]
+
+    body = create_attach_request(pub_key, priv_key)
+
     pem_pub_key = pub_key.public_bytes(
         serial.Encoding.PEM, serial.PublicFormat.SubjectPublicKeyInfo
     )
     pem_pub_key_str = pem_pub_key.decode()
     my_address = hashlib.sha256(pem_pub_key).digest().hex()
-    print(pem_pub_key)
-    print(my_address)
     # client.post
-    
-    contents = {"public_key": pem_pub_key_str, "their_address": my_address}
-    separators=(',', ':')
-    serialised_contents = json.dumps(contents,sort_keys=True,separators=separators).encode()
 
-    print("Sign")
-    sign = priv_key.sign(serialised_contents,ec.ECDSA(hashes.SHA256())).hex() # DER encoded
+    contents = {"public_key": pem_pub_key_str, "their_address": my_address}
+    separators = (",", ":")
+    serialised_contents = json.dumps(
+        contents, sort_keys=True, separators=separators
+    ).encode()
+
+    sign = priv_key.sign(
+        serialised_contents, ec.ECDSA(hashes.SHA256())
+    ).hex()  # DER encoded
     print(f"serial_content = {serialised_contents}")
     j = {"contents": contents, "sign": sign}
-    pprint.pprint(j)
-    response = client.post("/attach/", json=j)
+    if body == j:
+        print("Body and j is the same")
+    else:
+        if body["contents"] == j["contents"]:
+            print("Contents of body and j is the same")
+        print("Dupa")
+        pprint.pprint(body)
+        pprint.pprint(j)
+    response = client.post("/attach/", json=body)
     assert response.status_code == 200

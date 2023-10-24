@@ -6,12 +6,15 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+import requests
+
 import ipaddress
 import json
 import datetime
 
+from utils import *
 from keychain.main import Seed, Pair_id, generate_pair
-from models import Neighbor, Item, InnerItem
+from models import *
 
 import cryptography.hazmat.primitives.serialization as serial
 import cryptography.hazmat.primitives.asymmetric.ec as ec
@@ -77,15 +80,15 @@ def verify(public_key: str, sign: str, data: BaseModel):
 
 
 @app.post("/attach")
-def attach_neighbour(item: Item, request: Request):
+def attach_neighbor(item: Item, request: Request) -> AttachSuccess:
     # Get their identity
     # Verify it's them
     # Add them to neighbors if I can
     # otherwise send 429 and neighbors
     contents = item.contents
     verify(item.contents.public_key, item.sign, item.contents)
-
-    if len(app.neighbors) >= NEIGHBOR_LIMIT:
+    neighbors: dict[str, Neighbor] = app.neighbors
+    if len(neighbors) >= NEIGHBOR_LIMIT:
         raise NeighborLimitReached(neighbor=app.neighbors)
     else:
         client = request.client.host
@@ -100,19 +103,54 @@ def attach_neighbour(item: Item, request: Request):
         )
 
         pprint(neighbor)
-        print(neighbor)
+        pprint(neighbors)
 
         print(f"ts = {ts}")
         # print(neighbor)
         # print(item)
-        app.neighbors[client] = neighbor
+        neighbors[client] = neighbor
 
-        return {"expire": expire}
+        return AttachSuccess(expire, neighbors.values())
 
 
 @app.post("/join")
-def join_network():
-    return {"result": "success"}
+def join_network(join: Join):
+    pub_key = PUBLIC_KEY
+    priv_key = PRIVATE_KEY
+    ip = join.guard_node
+
+    pem_pub_key = pub_key.public_bytes(
+        serial.Encoding.PEM, serial.PublicFormat.SubjectPublicKeyInfo
+    )
+    pem_pub_key_str = pem_pub_key.decode()
+    my_address = hashlib.sha256(pem_pub_key).digest().hex()
+    print(pem_pub_key)
+    print(my_address)
+    # client.post
+
+    contents = {"public_key": pem_pub_key_str, "their_address": my_address}
+    separators = (",", ":")
+    serialised_contents = json.dumps(
+        contents, sort_keys=True, separators=separators
+    ).encode()
+
+    print("Sign")
+    sign = priv_key.sign(
+        serialised_contents, ec.ECDSA(hashes.SHA256())
+    ).hex()  # DER encoded
+    print(f"serial_content = {serialised_contents}")
+    j = {"contents": contents, "sign": sign}
+    pprint.pprint(j)
+    response = requests.post(url=f"{ip}/attach/", json=j)
+    match response.status_code:
+        case 200:
+            body: dict = response.json()
+            exp = body.get("expire")
+            ats = AttachSuccess(exp)
+        case 429:
+            print("Too much neighbors connected -> falling back to reported neighbors")
+
+    return {"result": "success", "guard_node": ip}
 
 
 @app.get("/items/{item_id}")
