@@ -7,3 +7,4 @@ httpx
 rocketry
 pyjwt[crypto]
 pydantic-settings
+requests
