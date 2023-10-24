@@ -57,14 +57,14 @@ class Pair_id(bytes):
     pass
 
 
-def encrypt(key_id):
+def sign(key_id):
     pass
     
     #pk : ec_crypto.EllipticCurvePrivateKey
     #pk
 
 
-def decrypt(key_id):
+def verify(key_id):
     pass
 
 
