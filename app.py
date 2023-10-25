@@ -9,6 +9,9 @@ from pydantic import BaseModel
 import requests
 import uvicorn
 
+import schedule
+import copy
+
 import random
 import os
 
@@ -42,6 +45,8 @@ app = FastAPI()
 app.neighbors: dict[str, Neighbor] = {}
 
 
+
+
 @app.get("/")
 def read_root(request: Request):
     client = request.client.host
@@ -61,20 +66,28 @@ def keep_alive():
 
 
 class NeighborLimitReached(Exception):
-    def __init__(self, neighbor: list[Neighbor]):
-        self.neighbor = neighbor
+    def __init__(self, neighbors: list[Neighbor], details: dict[str,Any]):
+        self.neighbors = neighbors
+        self.details = details
 
 
 @app.exception_handler(NeighborLimitReached)
 async def unicorn_exception_handler(request: Request, exc: NeighborLimitReached):
     return JSONResponse(
         status_code=429,
-        content=exc.neighbor,
+        content={
+            "neighbors": exc.neighbors,
+            "details": exc.details
+        }
     )
 
+def get_my_url():
+    return f"{PROTOCOL}://{HOST}:{PORT}/"
 
 @app.post("/attach")
-def attach_neighbor(item: Item, request: Request) -> AttachSuccess:
+def attach_neighbor(item: Item, request: Request, bg: BackgroundTasks) -> AttachSuccess:
+    pub_key = PUBLIC_KEY
+    priv_key = PRIVATE_KEY
     print("Attach started")
     # Get their identity
     # Verify it's them
@@ -82,9 +95,11 @@ def attach_neighbor(item: Item, request: Request) -> AttachSuccess:
     # otherwise send 429 and neighbors
     contents = item.contents
     verify(item.contents.public_key, item.sign, item.contents)
+    my_info = create_attach_request(pub_key, priv_key,get_my_url())
+    
     neighbors: dict[str, Neighbor] = app.neighbors
     if len(neighbors) >= NEIGHBOR_LIMIT:
-        raise NeighborLimitReached(neighbor=app.neighbors)
+        raise NeighborLimitReached(neighbors=app.neighbors,details=my_info)
     else:
         client = request.client.host
         ct = datetime.datetime.now()
@@ -104,10 +119,11 @@ def attach_neighbor(item: Item, request: Request) -> AttachSuccess:
         # print(neighbor)
         # print(item)
         if client in neighbors:
-            raise HTTPException(403, f"IP address of {client} has a node registered")
+            raise HTTPException(409, f"IP address of {client} has a node registered")
+        old_neighbors = copy.deepcopy(neighbors)
         neighbors[client] = neighbor
 
-        return AttachSuccess(expire, list(neighbors.values()))
+        return AttachSuccess(expire, list(old_neighbors.values()),details=my_info)
 
 
 @app.post("/join")
@@ -115,9 +131,10 @@ def join_network(join: Join):
     pub_key = PUBLIC_KEY
     priv_key = PRIVATE_KEY
     guard_node = join.guard_node
+    neighbors: dict[str, Neighbor] = app.neighbors
 
-    my_url = f"{PROTOCOL}://{HOST}:{PORT}/"
-
+    my_url = get_my_url()
+    
     attach_request_body = create_attach_request(pub_key, priv_key,my_url)
     attach_request_response = requests.post(
         url=f"{guard_node}attach/", json=attach_request_body
@@ -128,6 +145,21 @@ def join_network(join: Join):
         case 200:
             body: dict = attach_request_response.json()
             ats = AttachSuccess(**body)
+            try:
+                verify(ats.details.contents.public_key,ats.details.sign,ats.details.contents)
+            except HTTPException as e:
+                raise HTTPException(502, "PANIC: SOME SHENANIGANS GOING ON AS RESPONS IS INVALID")
+            neighbor = Neighbor(
+                tcp_address=guard_node,
+                pub_key=ats.details.contents.public_key,
+                address=ats.details.contents.their_address,
+                expiration=ats.expire,
+            )
+            print(f"Adding {neighbor}")
+            if guard_node in neighbors:
+                raise HTTPException(502,"Response from existing node")
+            else:
+                neighbors[guard_node] = neighbor
             pprint(ats)
             print(f"Successful connect {ats} -> find 2 more guard nodes guard")
             handle_followup_attaches(ats.neighbors,pub_key,priv_key, my_url)
@@ -143,6 +175,11 @@ def join_network(join: Join):
             print(msg)
             pprint(b)
             raise HTTPException(502,msg)
+        case 409:
+            b = attach_request_response.json()
+            print("I tried to occupy the spot")
+            pprint(b)
+            raise HTTPException(409,msg)
 
 
     return {"result": "success", "guard_node": guard_node}
