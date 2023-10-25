@@ -57,17 +57,6 @@ class Pair_id(bytes):
     pass
 
 
-def sign(key_id):
-    pass
-    
-    #pk : ec_crypto.EllipticCurvePrivateKey
-    #pk
-
-
-def verify(key_id):
-    pass
-
-
 def generate_seed() -> Seed:
     rng = sec.token_bytes(32)
     return Seed(rng)

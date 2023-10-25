@@ -2,13 +2,15 @@ from typing import Union
 
 from pprint import pprint
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 import requests
+import uvicorn
 
 import random
+import os
 
 import ipaddress
 import json
@@ -30,6 +32,11 @@ pair_id = Pair_id(b"0")
 keys = generate_pair(SEED, pair_id)
 PRIVATE_KEY = keys[0]
 PUBLIC_KEY = keys[1]
+
+PORT = int(os.environ.get("ME_COIN_PORT",8000))
+HOST = ipaddress.ip_address(os.environ.get("ME_COIN_HOST","127.0.0.1"))
+PROTOCOL =os.environ.get("ME_COIN_PROTOCOL","http")
+
 
 app = FastAPI()
 app.neighbors: dict[str, Neighbor] = {}
@@ -66,23 +73,9 @@ async def unicorn_exception_handler(request: Request, exc: NeighborLimitReached)
     )
 
 
-def verify(public_key: str, sign: str, data: BaseModel):
-    pub_key = serial.load_pem_public_key(public_key.encode())
-    if isinstance(pub_key, ec.EllipticCurvePublicKey):
-        pass
-        # print("It' public key")
-    signature = bytes.fromhex(sign)
-    # print(f"signature = {signature}")
-    serial_contents = data.model_dump_json().encode()
-    # print(f"serial_contents = {serial_contents}")
-    try:
-        pub_key.verify(signature, serial_contents, ec.ECDSA(hashes.SHA256()))
-    except crypto_exceptions.InvalidSignature as e:
-        raise HTTPException(status_code=403, detail="Invalid Signature")
-
-
 @app.post("/attach")
 def attach_neighbor(item: Item, request: Request) -> AttachSuccess:
+    print("Attach started")
     # Get their identity
     # Verify it's them
     # Add them to neighbors if I can
@@ -98,7 +91,7 @@ def attach_neighbor(item: Item, request: Request) -> AttachSuccess:
         ts = int(ct.timestamp() * 1000.0)
         expire = ts + 20 * 1000
         neighbor = Neighbor(
-            ip=client,
+            tcp_address=contents.their_url,
             pub_key=contents.public_key,
             address=contents.their_address,
             expiration=expire,
@@ -110,9 +103,11 @@ def attach_neighbor(item: Item, request: Request) -> AttachSuccess:
         print(f"ts = {ts}")
         # print(neighbor)
         # print(item)
+        if client in neighbors:
+            raise HTTPException(403, f"IP address of {client} has a node registered")
         neighbors[client] = neighbor
 
-        return AttachSuccess(expire, neighbors.values())
+        return AttachSuccess(expire, list(neighbors.values()))
 
 
 @app.post("/join")
@@ -121,28 +116,36 @@ def join_network(join: Join):
     priv_key = PRIVATE_KEY
     guard_node = join.guard_node
 
-    attach_request_body = create_attach_request(pub_key, priv_key)
+    my_url = f"{PROTOCOL}://{HOST}:{PORT}/"
+
+    attach_request_body = create_attach_request(pub_key, priv_key,my_url)
     attach_request_response = requests.post(
-        url=f"{guard_node}/attach/", json=attach_request_body
+        url=f"{guard_node}attach/", json=attach_request_body
     )
+    print(f"Request to attach send to {attach_request_response.url}")
 
     match attach_request_response.status_code:
         case 200:
             body: dict = attach_request_response.json()
             ats = AttachSuccess(**body)
+            pprint(ats)
             print(f"Successful connect {ats} -> find 2 more guard nodes guard")
-            handle_followup_attaches(ats.neighbors,pub_key,priv_key)
+            handle_followup_attaches(ats.neighbors,pub_key,priv_key, my_url)
                 
         case 429:
             body: dict = attach_request_response.json()
             atf = AttachFailure(**body)
             print("Too much neighbors connected -> falling back to reported neighbors")
-            handle_followup_attaches(atf.neighbors,pub_key,priv_key)
+            handle_followup_attaches(atf.neighbors,pub_key,priv_key, my_url)
+        case 403:
+            msg = "PANIC I SEND INVALID MESSAGE"
+            b = attach_request_response.json()
+            print(msg)
+            pprint(b)
+            raise HTTPException(502,msg)
 
 
     return {"result": "success", "guard_node": guard_node}
 
-
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
+if __name__ == "__main__":
+    uvicorn.run(app, host=str(HOST), port=PORT)  

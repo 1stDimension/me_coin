@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 
 class Neighbor(BaseModel):
-    ip: str
+    tcp_address: str
     pub_key: str
     address: str
     expiration: int
@@ -11,6 +11,7 @@ class Neighbor(BaseModel):
 class InnerItem(BaseModel):
     public_key: str  # PEM
     their_address: bytes  # hex of PEM
+    their_url: HttpUrl
 
 
 class Item(BaseModel):
