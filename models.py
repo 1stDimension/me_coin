@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 
 class Neighbor(BaseModel):
-    tcp_address: str
+    tcp_address: HttpUrl
     pub_key: str
     address: str
     expiration: int
@@ -18,6 +18,7 @@ class Item(BaseModel):
     contents: InnerItem
     sign: str
 
+
 class Join(BaseModel):
     guard_node: HttpUrl
 
@@ -27,7 +28,17 @@ class AttachSuccess():
     neighbors: list[Neighbor]
     details: Item
 
+    def __post_init__(self):
+        self.details = Item(**self.details)
+        self.neighbors = list(map(
+            lambda x: Neighbor(**x),
+            self.neighbors
+        ))
+
 @dataclass
 class AttachFailure():
     neighbors: list[Neighbor]
     details: Item
+
+    def __post_init__(self):
+        self.details = Item(**self.details)

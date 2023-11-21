@@ -29,9 +29,10 @@ import cryptography.hazmat.primitives.hashes as hashes
 import cryptography.exceptions as crypto_exceptions
 
 NEIGHBOR_LIMIT = 5
-SEED_FILE = "seed_phrase.txt"
+SEED_FILE = os.environ.get("ME_COIN_SEED_FILE","seed_phrase.txt")
 SEED = Seed.from_file(SEED_FILE)
-pair_id = Pair_id(b"0")
+KEY_ID= bytes(os.environ.get("ME_COIN_KEY_ID","0"),encoding="utf-8")
+pair_id = Pair_id(KEY_ID)
 keys = generate_pair(SEED, pair_id)
 PRIVATE_KEY = keys[0]
 PUBLIC_KEY = keys[1]
@@ -45,13 +46,18 @@ app = FastAPI()
 app.neighbors: dict[str, Neighbor] = {}
 
 
-
-
 @app.get("/")
 def read_root(request: Request):
     client = request.client.host
     return {"Hello": "World"}
 
+@app.get("/my_info")
+def read_root():
+    public_key = PUBLIC_KEY
+    pem_pub_key = public_key.public_bytes(
+        serial.Encoding.PEM, serial.PublicFormat.SubjectPublicKeyInfo
+    ).decode()
+    return {"my_url": get_my_url(),"public_key": pem_pub_key}
 
 @app.get("/neighbors")
 def read_neighbor() -> dict[str, Neighbor]:
@@ -101,7 +107,8 @@ def attach_neighbor(item: Item, request: Request, bg: BackgroundTasks) -> Attach
     if len(neighbors) >= NEIGHBOR_LIMIT:
         raise NeighborLimitReached(neighbors=app.neighbors,details=my_info)
     else:
-        client = request.client.host
+        client = str(contents.their_url)
+        # Add challenge
         ct = datetime.datetime.now()
         ts = int(ct.timestamp() * 1000.0)
         expire = ts + 20 * 1000
@@ -144,7 +151,10 @@ def join_network(join: Join):
     match attach_request_response.status_code:
         case 200:
             body: dict = attach_request_response.json()
+            print("BEFORE ats")
+            pprint(body)
             ats = AttachSuccess(**body)
+            pprint(ats)
             try:
                 verify(ats.details.contents.public_key,ats.details.sign,ats.details.contents)
             except HTTPException as e:
@@ -160,6 +170,7 @@ def join_network(join: Join):
                 raise HTTPException(502,"Response from existing node")
             else:
                 neighbors[guard_node] = neighbor
+            pprint("ATS")
             pprint(ats)
             print(f"Successful connect {ats} -> find 2 more guard nodes guard")
             handle_followup_attaches(ats.neighbors,pub_key,priv_key, my_url)
@@ -179,7 +190,7 @@ def join_network(join: Join):
             b = attach_request_response.json()
             print("I tried to occupy the spot")
             pprint(b)
-            raise HTTPException(409,msg)
+            raise HTTPException(409,"spot occupied")
 
 
     return {"result": "success", "guard_node": guard_node}
