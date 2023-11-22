@@ -80,7 +80,7 @@ def miner_process():
 
 @app.get("/mine")
 async def do_mining(q : BackgroundTasks):
-    q.add_task(b_task, do_mining.__name__)
+    q.add_task(start_mining, do_mining.__name__)
     return {"I do mine"}
 
 @app.get("/my_info")
