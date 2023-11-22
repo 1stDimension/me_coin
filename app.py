@@ -6,6 +6,9 @@ from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from fastapi import BackgroundTasks, Depends, FastAPI
+from contextlib import asynccontextmanager
+
 import requests
 import uvicorn
 
@@ -18,6 +21,7 @@ import os
 import ipaddress
 import json
 import datetime
+import time
 
 from utils import *
 from keychain.main import Seed, Pair_id, generate_pair
@@ -41,15 +45,43 @@ PORT = int(os.environ.get("ME_COIN_PORT",8000))
 HOST = ipaddress.ip_address(os.environ.get("ME_COIN_HOST","127.0.0.1"))
 PROTOCOL =os.environ.get("ME_COIN_PROTOCOL","http")
 
+import multiprocessing
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load the ML model
+    print ("Before yield") 
+    yield
+    print ("After yield") 
+
+app = FastAPI(lifespan=lifespan)
 app.neighbors: dict[str, Neighbor] = {}
 
+FLAG = True
 
 @app.get("/")
 def read_root(request: Request):
     client = request.client.host
     return {"Hello": "World"}
+
+
+def start_mining(msg:str):
+    print(f"Notification {msg}")
+    
+    c = 1
+    while FLAG:
+        print(f"I'm mining {c}")
+        c += 1
+        time.sleep(1)
+        
+def miner_process():
+    pass
+        
+
+@app.get("/mine")
+async def do_mining(q : BackgroundTasks):
+    q.add_task(b_task, do_mining.__name__)
+    return {"I do mine"}
 
 @app.get("/my_info")
 def read_root():

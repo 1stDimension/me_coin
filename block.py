@@ -1,44 +1,47 @@
+from dataclasses import dataclass
 from hashlib import sha256
 from datetime import datetime
 
+from typing import Self
+
+@dataclass
 class Block:
-    def __init__(self, index, hash, previous_hash, timestamp, data,  nonce):
-        self.index = index
-        self.hash = hash
-        self.previous_hash = previous_hash
-        self.timestamp = timestamp
-        self.data = data
-        self.nonce = nonce
+    index: int
+    hash: str
+    previous_hash :str
+    timestamp: datetime
+    data: str
+    nonce: int
 
 class BlockChain:
     def __init__(self,difficulty = 4):
         self.fixed_date = datetime(2023, 1, 1, 12, 30, 45) # Used for creating a genesis block 
-        self.genesis_hash = "2eb9e0d013ad3ce15c93a8435b729b6dcd193dec985880f9c080ab4bac7bbdc6"
+        self.genesis_hash : str= "2eb9e0d013ad3ce15c93a8435b729b6dcd193dec985880f9c080ab4bac7bbdc6"
         self.chain = [Block(0,self.genesis_hash,None,self.fixed_date,None,None)]
         self.difficulty = difficulty
 
-    def add_block(self, block):
+    def add_block(self, block : Block):
         self.chain.append(block)
 
-    def get_latest_block(self):
+    def get_latest_block(self) -> Block:
         return self.chain[-1]
      
     #HASH CALCULATIONS    
-    def calculate_hash_from_values(self,index, previous_hash, timestamp, data,nonce):
+    def calculate_hash_from_values(self,index:int, previous_hash:str, timestamp: datetime, data :str,nonce :int):
         data_str = f"{index}{previous_hash}{timestamp}{data}{nonce}"
         hashed_data = sha256(data_str.encode()).hexdigest()
         return hashed_data
 
-    def calculate_hash_for_block(self,block):
+    def calculate_hash_for_block(self,block: Block):
         data_str=f"{block.index}{block.previous_hash}{block.timestamp}{block.data}{block.nonce}"
         hashed_data = sha256(data_str.encode()).hexdigest()
         return hashed_data
     
     #VALIDATION
-    def hash_matches_difficulty(self,hash_value):
+    def hash_matches_difficulty(self,hash_value: str):
         return hash_value[:self.difficulty] == '0' * self.difficulty
 
-    def is_valid_new_block(self,new_block, previous_block):
+    def is_valid_new_block(self,new_block: Block, previous_block: Block):
         if previous_block.index + 1 != new_block.index:
             print('Invalid index')
             return False
@@ -53,7 +56,7 @@ class BlockChain:
             return False
         return True
     
-    def is_valid_chain(self,blockchain_to_validate):
+    def is_valid_chain(self,blockchain_to_validate : Self):
         #Verify if genesis valid
         if blockchain_to_validate.chain[0].index != 0:
             return False
@@ -73,7 +76,7 @@ class BlockChain:
         if self.is_valid_chain(chain_to_check) and len(self.chain)<len(chain_to_check):
             self.chain = chain_to_check
     
-    def generate_next_block(self,block_data):
+    def generate_next_block(self,block_data: str):
         previous_block = self.get_latest_block()
         next_index = previous_block.index + 1
         next_timestamp = datetime.now()
@@ -82,7 +85,7 @@ class BlockChain:
         return new_block
 
     #MINING
-    def find_block(self,index, previous_hash, timestamp, data):
+    def find_block(self,index: int, previous_hash: str, timestamp: datetime, data: str):
         nonce = 0
         while True:
             hash_value = self.calculate_hash_from_values(index, previous_hash, timestamp, data, nonce)
