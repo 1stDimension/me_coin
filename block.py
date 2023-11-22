@@ -8,13 +8,13 @@ from typing import Self
 class Block:
     index: int
     hash: str
-    previous_hash :str
-    timestamp: datetime
-    data: str
-    nonce: int
+    previous_hash :str | None
+    timestamp: int
+    data: str | None
+    nonce: int | None
 
 class BlockChain:
-    def __init__(self,difficulty = 4):
+    def __init__(self,difficulty = 1):
         self.fixed_date = datetime(2023, 1, 1, 12, 30, 45) # Used for creating a genesis block 
         self.genesis_hash : str= "2eb9e0d013ad3ce15c93a8435b729b6dcd193dec985880f9c080ab4bac7bbdc6"
         self.chain = [Block(0,self.genesis_hash,None,self.fixed_date,None,None)]
@@ -27,7 +27,7 @@ class BlockChain:
         return self.chain[-1]
      
     #HASH CALCULATIONS    
-    def calculate_hash_from_values(self,index:int, previous_hash:str, timestamp: datetime, data :str,nonce :int):
+    def calculate_hash_from_values(self,index:int, previous_hash:str, timestamp: int, data :str,nonce :int):
         data_str = f"{index}{previous_hash}{timestamp}{data}{nonce}"
         hashed_data = sha256(data_str.encode()).hexdigest()
         return hashed_data
@@ -79,13 +79,13 @@ class BlockChain:
     def generate_next_block(self,block_data: str):
         previous_block = self.get_latest_block()
         next_index = previous_block.index + 1
-        next_timestamp = datetime.now()
+        next_timestamp = int(datetime.now().timestamp())
         new_block = self.find_block(next_index,previous_block.hash,next_timestamp,block_data)
 
         return new_block
 
     #MINING
-    def find_block(self,index: int, previous_hash: str, timestamp: datetime, data: str):
+    def find_block(self,index: int, previous_hash: str, timestamp: int, data: str):
         nonce = 0
         while True:
             hash_value = self.calculate_hash_from_values(index, previous_hash, timestamp, data, nonce)

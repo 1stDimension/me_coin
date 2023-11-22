@@ -31,6 +31,22 @@ def verify(public_key: str, sign: str, data: BaseModel):
     except crypto_exceptions.InvalidSignature as e:
         raise HTTPException(status_code=403, detail="Invalid Signature")
 
+def sign(
+    contents: dict[str,Any],
+    private_key: ec.EllipticCurvePrivateKey,
+    ):
+    separators = (",", ":")
+    print(contents)
+    serialized_contents = json.dumps(
+        contents, sort_keys=True, separators=separators
+    ).encode()
+
+    signed = private_key.sign(
+        serialized_contents, ec.ECDSA(hashes.SHA256())
+    ).hex()  # DER encoded
+    print(f"serial_contents = {serialized_contents}")
+    print(f"signature = {signed}")
+    return signed
 
 def create_attach_request(
     public_key: ec.EllipticCurvePublicKey,
@@ -47,17 +63,8 @@ def create_attach_request(
     contents = {"public_key": pem_pub_key_str,
                 "their_address": my_address,
                 "their_url": my_url}
-    separators = (",", ":")
-    serialized_contents = json.dumps(
-        contents, sort_keys=True, separators=separators
-    ).encode()
-
-    sign = private_key.sign(
-        serialized_contents, ec.ECDSA(hashes.SHA256())
-    ).hex()  # DER encoded
-    print(f"serial_contents = {serialized_contents}")
-    print(f"signature = {sign}")
-    return {"contents": contents, "sign": sign}
+    signed = sign(contents,private_key)
+    return {"contents": contents, "sign": signed}
 
 CONNECT_LEAVES = 2
 
@@ -86,7 +93,7 @@ def handle_single_attach(
     my_url: str
     ):
     new_attach_request_body = create_attach_request(pub_key, priv_key,my_url)
-    next_guard_node = i.tcp_address
+    next_guard_node = i.http_address
     new_attach_request_response = requests.post(
                     url=f"{next_guard_node}attach/", json=new_attach_request_body
                 )

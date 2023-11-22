@@ -1,4 +1,6 @@
+from pydoc import cli
 from typing import Union
+from block import Block
 
 from pprint import pprint
 
@@ -50,18 +52,21 @@ import multiprocessing
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Load the ML model
-    print ("Before yield") 
+    # print ("Before yield") 
     yield
-    print ("After yield") 
+    # print ("After yield") 
 
 app = FastAPI(lifespan=lifespan)
-app.neighbors: dict[str, Neighbor] = {}
+app.neighbors: dict[str, Neighbor] = {} # type: ignore
 
 FLAG = True
 
 @app.get("/")
 def read_root(request: Request):
-    client = request.client.host
+    if client := request.client:
+        client = request.client.host
+        print(client)
+
     return {"Hello": "World"}
 
 
@@ -77,6 +82,31 @@ def start_mining(msg:str):
 def miner_process():
     pass
         
+@app.post("/broadcast")
+async def broadcast():
+    pem_pub_key = PUBLIC_KEY.public_bytes(
+        serial.Encoding.PEM, serial.PublicFormat.SubjectPublicKeyInfo
+    )
+    priv_key = PRIVATE_KEY
+    neighbors: dict[str, Neighbor] = app.neighbors
+    nonce = 1
+    new_block = Block(1,"","", datetime.datetime.now(),"",nonce)
+    for key, neigh in neighbors.items():
+        print(f"Do thing for {key} and {neigh}")
+        ib_body = InnerBroadcast(block=new_block,pub_key=pem_pub_key.decode())
+        signed = sign(ib_body.model_dump(),priv_key)
+        b_body = Broadcast(contents=ib_body,sign=signed)
+        resp = requests.post(
+            url=f"{neigh.http_address}propose"
+        )
+        # create body
+        # Send ne block not neighbors
+    return {"send_to": app.neighbors }
+
+@app.post("/propose")
+async def proposal(b_body: Broadcast):
+    print(b_body)
+    return {"Proposal is being made"}
 
 @app.get("/mine")
 async def do_mining(q : BackgroundTasks):
@@ -84,7 +114,7 @@ async def do_mining(q : BackgroundTasks):
     return {"I do mine"}
 
 @app.get("/my_info")
-def read_root():
+def get_my_info():
     public_key = PUBLIC_KEY
     pem_pub_key = public_key.public_bytes(
         serial.Encoding.PEM, serial.PublicFormat.SubjectPublicKeyInfo
@@ -93,6 +123,7 @@ def read_root():
 
 @app.get("/neighbors")
 def read_neighbor() -> dict[str, Neighbor]:
+    print(app.neighbors)
     return app.neighbors
 
 
@@ -145,9 +176,9 @@ def attach_neighbor(item: Item, request: Request, bg: BackgroundTasks) -> Attach
         ts = int(ct.timestamp() * 1000.0)
         expire = ts + 20 * 1000
         neighbor = Neighbor(
-            tcp_address=contents.their_url,
+            http_address=contents.their_url,
             pub_key=contents.public_key,
-            address=contents.their_address,
+            address=contents.their_address.decode(),
             expiration=expire,
         )
 
@@ -161,15 +192,16 @@ def attach_neighbor(item: Item, request: Request, bg: BackgroundTasks) -> Attach
             raise HTTPException(409, f"IP address of {client} has a node registered")
         old_neighbors = copy.deepcopy(neighbors)
         neighbors[client] = neighbor
+        print(neighbors)
 
-        return AttachSuccess(expire, list(old_neighbors.values()),details=my_info)
+        return AttachSuccess(expire, list(old_neighbors.values()),details=Item(**my_info))
 
 
 @app.post("/join")
 def join_network(join: Join):
     pub_key = PUBLIC_KEY
     priv_key = PRIVATE_KEY
-    guard_node = join.guard_node
+    guard_node = join.guard_node.unicode_string()
     neighbors: dict[str, Neighbor] = app.neighbors
 
     my_url = get_my_url()
@@ -192,7 +224,7 @@ def join_network(join: Join):
             except HTTPException as e:
                 raise HTTPException(502, "PANIC: SOME SHENANIGANS GOING ON AS RESPONS IS INVALID")
             neighbor = Neighbor(
-                tcp_address=guard_node,
+                http_address=join.guard_node,
                 pub_key=ats.details.contents.public_key,
                 address=ats.details.contents.their_address,
                 expiration=ats.expire,

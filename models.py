@@ -1,9 +1,10 @@
-from pydantic import BaseModel,AnyUrl, HttpUrl
+from pydantic import BaseModel, HttpUrl
 from dataclasses import dataclass
+from block import Block
 
 
 class Neighbor(BaseModel):
-    tcp_address: HttpUrl
+    http_address: HttpUrl
     pub_key: str
     address: str
     expiration: int
@@ -22,6 +23,14 @@ class Item(BaseModel):
 class Join(BaseModel):
     guard_node: HttpUrl
 
+class InnerBroadcast(BaseModel):
+    block: Block
+    pub_key: str
+    
+class Broadcast(BaseModel):
+    contents: InnerBroadcast
+    sign: str
+
 @dataclass
 class AttachSuccess():
     expire: int
@@ -29,11 +38,12 @@ class AttachSuccess():
     details: Item
 
     def __post_init__(self):
-        self.details = Item(**self.details)
-        self.neighbors = list(map(
-            lambda x: Neighbor(**x),
-            self.neighbors
-        ))
+        if not isinstance(self.details, Item):
+            self.details = Item(**self.details)
+            self.neighbors = list(map(
+                lambda x: Neighbor(**x),
+                self.neighbors
+            ))
 
 @dataclass
 class AttachFailure():
@@ -41,4 +51,5 @@ class AttachFailure():
     details: Item
 
     def __post_init__(self):
-        self.details = Item(**self.details)
+        if not isinstance(self.details, Item):
+            self.details = Item(**self.details)

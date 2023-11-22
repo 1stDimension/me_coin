@@ -37,7 +37,7 @@ class Seed(bytes):
             f.write(text)
 
     @staticmethod
-    def load(name=None) -> Self:
+    def load(name: str | None =None) -> Self: # type: ignore
         if name is None:
             name = Seed.default_name
         with open(name, "r") as f:
@@ -45,7 +45,7 @@ class Seed(bytes):
         return bytes(mnemo.to_entropy(text))
 
     @staticmethod
-    def from_file(name=None) -> Self:
+    def from_file(name=None) -> Self: # type: ignore
         if name is None:
             name = Seed.default_name
         with open(name, "r") as f:
